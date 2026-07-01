@@ -31,7 +31,7 @@ def get_all_names_from_photos():
                 all_names.append(name_without_ext)
     # ถ้าในโฟลเดอร์ยังไม่มีรูปเลย ให้ใส่ชื่อหลอกไว้ก่อนป้องกันระบบพัง
     if len(all_names) == 0:
-        all_names = ['เช็คชื่อ']
+        all_names = ['อนุมาส']
     return sorted(all_names)
 
 # 3. กลไกเช็คและสร้างฐานข้อมูล Excel รายชื่อหลักจากชื่อไฟล์รูปภาพ
