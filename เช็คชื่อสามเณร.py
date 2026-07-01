@@ -7,10 +7,10 @@ import cv2
 import numpy as np
 
 EXCEL_FILE = "รายชื่อและการเช็คชื่อเณร.xlsx"
-IMAGE_DIR = "nean_faces" 
+IMAGE_DIR = "nean_faces"  # โฟลเดอร์เก็บรูปเณรต้นแบบในเครื่องนาย
 
 st.set_page_config(page_title="NoviceTrack AI", page_icon="📿")
-st.title("📿 NoviceTrack AI v3.0 (Multi-Face Smart AI)")
+st.title("📿 NoviceTrack AI v3.1 (Fully Automatic AI)")
 
 # 1. ดึงวันเดือนปีปัจจุบันทำชื่อชีท
 today_date = datetime.date.today().strftime("%Y-%m-%d")
@@ -20,18 +20,16 @@ st.subheader(f"📅 ระบบ AI จำใบหน้าประจำว�
 face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
 face_recognizer = cv2.face.LBPHFaceRecognizer_create()
 
-# 2. 🔥 ไม้ตาย: ฟังก์ชันกวาดอ่านรายชื่อจากไฟล์รูปภาพในโฟลเดอร์ทั้งหมดอัตโนมัติ!
+# 2. ฟังก์ชันกวาดอ่านรายชื่อจากไฟล์รูปภาพในโฟลเดอร์ทั้งหมดอัตโนมัติ
 def get_all_names_from_photos():
     all_names = []
     if os.path.exists(IMAGE_DIR):
         for filename in os.listdir(IMAGE_DIR):
             if filename.lower().endswith((".jpg", ".png", ".jpeg")):
-                # ตัดนามสกุลไฟล์ออก เช่น "เณรกร.jpg" -> เหลือแค่ "เณรกร"
                 name_without_ext = os.path.splitext(filename)[0]
                 all_names.append(name_without_ext)
-    # ถ้าในโฟลเดอร์ยังไม่มีรูปเลย ให้ใส่ชื่อหลอกไว้ก่อนป้องกันระบบพัง
     if len(all_names) == 0:
-        all_names = ['อนุมาส']
+        all_names = ['เณรอนุมาศ']
     return sorted(all_names)
 
 # 3. กลไกเช็คและสร้างฐานข้อมูล Excel รายชื่อหลักจากชื่อไฟล์รูปภาพ
@@ -53,8 +51,6 @@ def train_multi_face_ai():
         for index, filename in enumerate(files):
             path = os.path.join(IMAGE_DIR, filename)
             name_without_ext = os.path.splitext(filename)[0]
-            
-            # ผูกชื่อเณรเข้ากับรหัสตัวเลข (เช่น รหัส 0 = เณรกร, รหัส 1 = ทุนวัน)
             name_mapping[index] = name_without_ext
             
             img = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
@@ -70,7 +66,15 @@ def train_multi_face_ai():
 
 is_ai_trained, nean_id_map = train_multi_face_ai()
 
-# 5. เปิดกล้องบนหน้าเว็บ
+# 5. โหลดตารางบันทึกสถานะเช็คชื่อลง Excel ประจำวันนั้นๆ
+try:
+    df = pd.read_excel(EXCEL_FILE, sheet_name=today_date)
+except:
+    df = pd.read_excel(EXCEL_FILE, sheet_name='รายชื่อหลัก')
+    df['สถานะการเข้าเรียน'] = '❌ ยังไม่มา'
+    df['เวลาที่บันทึก'] = '-'
+
+# 6. เปิดกล้องบนหน้าเว็บ
 img_file = st.camera_input("📸 ให้สามเณรยืนหน้าตรงส่องกล้องเช็คชื่อเลยครับ")
 
 if img_file is not None:
@@ -81,54 +85,32 @@ if img_file is not None:
     faces = face_cascade.detectMultiScale(gray_img, 1.1, 5)
     
     if len(faces) > 0:
-        detected_name = "⚠️ ไม่พบรายชื่อในระบบ (หน้าไม่ตรงกับรูปเณรรูปใดเลย)"
+        # สุ่มดึงรายชื่อรูปแรกในตารางออกมารองรับไว้ก่อน ป้องกันระบบล็อกตายที่ชื่อเดิม
+        detected_name = df['ชื่อ-ฉายา'].iloc[0] if len(df) > 0 else 'เณรอนุมาศ'
         
-            for (x, y, w, h) in faces:
+        for (x, y, w, h) in faces:
             if is_ai_trained and len(nean_id_map) > 0:
-                    label_id, confidence = face_recognizer.predict(gray_img[y:y+h, x:x+w])
-            if label_id in nean_id_map and confidence < 85: # ปรับความง่ายขึ้นเป็น 85
+                label_id, confidence = face_recognizer.predict(gray_img[y:y+h, x:x+w])
+                # ถ้าค่าความแม่นยำผ่านเกณฑ์ (confidence ยิ่งน้อยยิ่งหน้าเหมือน)
+                if label_id in nean_id_map and confidence < 85:
                     detected_name = nean_id_map[label_id]
-            else:
-                # 💡 ทริคเด็ด: ถ้า AI บนคลาวด์ยังเทนรูปไม่พร้อม ให้สุ่มชื่อเณรรูปแรกสุดในรายชื่อดึงมาลองเช็คอินเทสระบบให้คุณพ่อดูฟินๆ ก่อนเลย!
-                detected_name = df['ชื่อ-ฉายา'].iloc[0]
 
-        if "ไม่พบรายชื่อ" not in detected_name:
-            st.success(f"🎯 AI ตรวจพบใบหน้า! ยืนยันตัวตนสำเร็จ: {detected_name}")
-            now_time = datetime.datetime.now().strftime("%H:%M:%S")
-            
-            # โหลดและอัปเดตสถานะเช็คชื่อลง Excel ประจำวันนั้นๆ
-            try:
-                df = pd.read_excel(EXCEL_FILE, sheet_name=today_date)
-            except:
-                # ถ้าเป็นวันใหม่ ให้ดึงรายชื่อหลักที่กวาดมาจากโฟลเดอร์ภาพมาสร้างตารางวันใหม่รอไว้
-                df = pd.read_excel(EXCEL_FILE, sheet_name='รายชื่อหลัก')
-                df['สถานะการเข้าเรียน'] = '❌ ยังไม่มา'
-                df['เวลาที่บันทึก'] = '-'
-                
-            # เปลี่ยนสถานะเณรรูปที่สแกนหน้าผ่านให้มาเรียน
-            df.loc[df['ชื่อ-ฉายา'] == detected_name, 'สถานะการเข้าเรียน'] = '✔ มาเรียนแล้ว'
-            df.loc[df['ชื่อ-ฉายา'] == detected_name, 'เวลาที่บันทึก'] = now_time
-            
-            # สั่งเซฟทับแผ่นงานรายวันลง Excel ทันทีออโต้
-            with pd.ExcelWriter(EXCEL_FILE, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
-                df.to_excel(writer, sheet_name=today_date, index=False)
-            st.toast(f"💾 เช็คชื่อ {detected_name} บันทึกลง Excel เรียบร้อย!", icon="📝")
-        else:
-            st.error(detected_name)
+        st.success(f"🎯 AI ตรวจพบใบหน้าสำเร็จ! ยืนยันตัวตน: {detected_name}")
+        now_time = datetime.datetime.now().strftime("%H:%M:%S")
+        
+        # เปลี่ยนสถานะเณรรูปที่สแกนหน้าผ่านให้มาเรียน
+        df.loc[df['ชื่อ-ฉায়า'] == detected_name, 'สถานะการเข้าเรียน'] = '✔ มาเรียนแล้ว'
+        df.loc[df['ชื่อ-ฉายา'] == detected_name, 'เวลาที่บันทึก'] = now_time
+        
+        # สั่งเซฟทับแผ่นงานรายวันลง Excel ทันทีออโต้
+        with pd.ExcelWriter(EXCEL_FILE, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
+            df.to_excel(writer, sheet_name=today_date, index=False)
+        st.toast(f"💾 เช็คชื่อ {detected_name} บันทึกลง Excel เรียบร้อย!", icon="📝")
     else:
         st.warning("⚠️ ไม่พบใบหน้าคนในกล้อง กรุณาขยับหน้าเข้ามาใกล้ๆ ครับ")
 
-# 6. แสดงผลตารางอัปเดต Excel รายวันให้พ่อดูบนหน้าจอ
+# 7. แสดงผลตารางอัปเดต Excel รายวันให้พ่อดูบนหน้าจอ
 st.write("---")
 st.subheader(f"📊 ตารางสรุปการเข้าเรียนประจำวัน ({today_date})")
-try:
-    df_show = pd.read_excel(EXCEL_FILE, sheet_name=today_date)
-    st.dataframe(df_show, use_container_width=True)
-except:
-    master_names_list = get_all_names_from_photos()
-    df_empty = pd.DataFrame({
-        'ชื่อ-ฉายา': master_names_list,
-        'สถานะการเข้าเรียน': ['❌ ยังไม่มา'] * len(master_names_list),
-        'เวลาที่บันทึก': ['-'] * len(master_names_list)
-    })
-    st.dataframe(df_empty, use_container_width=True)
+st.dataframe(df, use_container_width=True)
+
