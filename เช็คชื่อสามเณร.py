@@ -45,10 +45,12 @@ try:
     if 'Name' not in df.columns:
         raise ValueError
 except Exception:
+    # ล็อกรายชื่อเณรทุกคนไว้ในตารางสำรอง เผื่อกรณีคลาวด์แอบลบรูป ข้อมูลจะได้ไม่หาย!
+    backup_names = ['เณรกร', 'ทุนวัน', 'พระเมือง', 'พระศิวัฒน์', 'สมพงษ์', 'สายทุน', 'หนุ่มเครือ', 'หนุ่มไต', 'อนุมาส']
     df = pd.DataFrame({
-        'Name': master_names,
-        'สถานะการเข้าเรียน': ['❌ ยังไม่มา'] * len(master_names),
-        'เวลาที่บันทึก': ['-'] * len(master_names)
+        'Name': backup_names,
+        'สถานะการเข้าเรียน': ['❌ ยังไม่มา'] * len(backup_names),
+        'เวลาที่บันทึก': ['-'] * len(backup_names)
     })
 
 img_file = st.camera_input("📸 ให้สามเณรยืนหน้าตรงส่องกล้องเช็คชื่อเลยครับ")
