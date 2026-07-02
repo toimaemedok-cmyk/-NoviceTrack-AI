@@ -7,20 +7,19 @@ import cv2
 import numpy as np
 
 EXCEL_FILE = "รายชื่อและการเช็คชื่อเณร.xlsx"
-IMAGE_DIR = "nean_faces"  # โฟลเดอร์เก็บรูปเณรต้นแบบในเครื่องนาย
+IMAGE_DIR = "nean_faces"
 
 st.set_page_config(page_title="NoviceTrack AI", page_icon="📿")
-st.title("📿 NoviceTrack AI v3.1 (Fully Automatic AI)")
+st.title("📿 NoviceTrack AI v3.2")
 
-# 1. ดึงวันเดือนปีปัจจุบันทำชื่อชีท
+# 1. ดึงวันเดือนปีปัจจุบัน
 today_date = datetime.date.today().strftime("%Y-%m-%d")
 st.subheader(f"📅 ระบบ AI จำใบหน้าประจำวันที่: {today_date}")
 
-# เรียกใช้ AI จับกรอบหน้าของ OpenCV
 face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
 face_recognizer = cv2.face.LBPHFaceRecognizer_create()
 
-# 2. ฟังก์ชันกวาดอ่านรายชื่อจากไฟล์รูปภาพในโฟลเดอร์ทั้งหมดอัตโนมัติ
+# ฟังก์ชันกวาดอ่านรายชื่อจากไฟล์รูปภาพ
 def get_all_names_from_photos():
     all_names = []
     if os.path.exists(IMAGE_DIR):
@@ -32,14 +31,14 @@ def get_all_names_from_photos():
         all_names = ['เณรอนุมาศ']
     return sorted(all_names)
 
-# 3. กลไกเช็คและสร้างฐานข้อมูล Excel รายชื่อหลักจากชื่อไฟล์รูปภาพ
+# 2. ⚡ ปรับชื่อคอลัมน์เป็นคำภาษาอังกฤษ 'Name' เพื่อสยบบั๊กสระอำถาวร!
 if not os.path.exists(EXCEL_FILE):
     master_names = get_all_names_from_photos()
-    base_df = pd.DataFrame({'ชื่อ-ฉายา': master_names})
+    base_df = pd.DataFrame({'Name': master_names})
     with pd.ExcelWriter(EXCEL_FILE, engine='openpyxl') as writer:
         base_df.to_excel(writer, sheet_name='รายชื่อหลัก', index=False)
 
-# 4. ฟังก์ชันสั่งให้ AI เรียนรู้จดจำพิกัดใบหน้าของเณรทุกคนในคลังรูปแบบจับคู่รหัสตัวเลข
+# 3. สั่งให้ AI เรียนรู้จดจำพิกัดใบหน้า
 @st.cache_resource
 def train_multi_face_ai():
     faces_data = []
@@ -66,7 +65,7 @@ def train_multi_face_ai():
 
 is_ai_trained, nean_id_map = train_multi_face_ai()
 
-# 5. โหลดตารางบันทึกสถานะเช็คชื่อลง Excel ประจำวันนั้นๆ
+# 4. โหลดตารางบันทึกสถานะประจำวัน
 try:
     df = pd.read_excel(EXCEL_FILE, sheet_name=today_date)
 except:
@@ -74,7 +73,7 @@ except:
     df['สถานะการเข้าเรียน'] = '❌ ยังไม่มา'
     df['เวลาที่บันทึก'] = '-'
 
-# 6. เปิดกล้องบนหน้าเว็บ
+# 5. เปิดกล้องบนหน้าเว็บมือถือพ่อ
 img_file = st.camera_input("📸 ให้สามเณรยืนหน้าตรงส่องกล้องเช็คชื่อเลยครับ")
 
 if img_file is not None:
@@ -85,32 +84,33 @@ if img_file is not None:
     faces = face_cascade.detectMultiScale(gray_img, 1.1, 5)
     
     if len(faces) > 0:
-        # สุ่มดึงรายชื่อรูปแรกในตารางออกมารองรับไว้ก่อน ป้องกันระบบล็อกตายที่ชื่อเดิม
-        detected_name = df['ชื่อ-ฉายา'].iloc[0] if len(df) > 0 else 'เณรอนุมาศ'
+        detected_name = df['Name'].iloc[0] if len(df) > 0 else 'เณรอนุมาศ'
         
         for (x, y, w, h) in faces:
             if is_ai_trained and len(nean_id_map) > 0:
                 label_id, confidence = face_recognizer.predict(gray_img[y:y+h, x:x+w])
-                # ถ้าค่าความแม่นยำผ่านเกณฑ์ (confidence ยิ่งน้อยยิ่งหน้าเหมือน)
                 if label_id in nean_id_map and confidence < 85:
                     detected_name = nean_id_map[label_id]
 
         st.success(f"🎯 AI ตรวจพบใบหน้าสำเร็จ! ยืนยันตัวตน: {detected_name}")
         now_time = datetime.datetime.now().strftime("%H:%M:%S")
         
-        # เปลี่ยนสถานะเณรรูปที่สแกนหน้าผ่านให้มาเรียน
-        df.loc[df['ชื่อ-ฉায়า'] == detected_name, 'สถานะการเข้าเรียน'] = '✔ มาเรียนแล้ว'
-        df.loc[df['ชื่อ-ฉายา'] == detected_name, 'เวลาที่บันทึก'] = now_time
+        # ⚡ สั่งอัปเดตช่องคอลัมน์ 'Name' ตัวใหม่ ไม่มีพังชัวร์!
+        df.loc[df['Name'] == detected_name, 'สถานะการเข้าเรียน'] = '✔ มาเรียนแล้ว'
+        df.loc[df['Name'] == detected_name, 'เวลาที่บันทึก'] = now_time
         
-        # สั่งเซฟทับแผ่นงานรายวันลง Excel ทันทีออโต้
         with pd.ExcelWriter(EXCEL_FILE, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
             df.to_excel(writer, sheet_name=today_date, index=False)
         st.toast(f"💾 เช็คชื่อ {detected_name} บันทึกลง Excel เรียบร้อย!", icon="📝")
     else:
         st.warning("⚠️ ไม่พบใบหน้าคนในกล้อง กรุณาขยับหน้าเข้ามาใกล้ๆ ครับ")
 
-# 7. แสดงผลตารางอัปเดต Excel รายวันให้พ่อดูบนหน้าจอ
+# 6. แสดงผลตารางอัปเดตเปลี่ยนหัวข้อให้พ่ออ่านง่าย
 st.write("---")
 st.subheader(f"📊 ตารางสรุปการเข้าเรียนประจำวัน ({today_date})")
-st.dataframe(df, use_container_width=True)
+
+# เปลี่ยนชื่อหัวตารางให้พ่อดูสวยงามตอนแสดงผลทางหน้าเว็บ
+df_display = df.rename(columns={'Name': 'ชื่อ-ฉายา'})
+st.dataframe(df_display, use_container_width=True)
+
 
